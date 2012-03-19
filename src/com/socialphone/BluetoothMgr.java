@@ -300,6 +300,29 @@ public class BluetoothMgr extends Activity {
         }
     };
     
+    int crc_chk(byte[] data)
+    {
+	    int j;
+	    int length = data.length - 1;
+	    int reg_crc=0xffff;
+    
+	    while(length != 0)
+	    {
+	    	reg_crc ^= data[length];
+	    	for(j=0;j<8;j++)
+	    	{
+	    			if((reg_crc & 0x01) != 0) /* LSB(b0)=1 */
+	    				reg_crc=(reg_crc >> 1) ^ 0xA001;
+	    			else
+	    				reg_crc=reg_crc >> 1;
+	    	}
+	    	
+	    	length--;
+	    }
+	    
+	    return reg_crc;
+	 }    
+    
      int CRC16(byte Msg[])
      {
     	 int uchCRCHi=0xFF ; /*CRC high byte*/
@@ -378,59 +401,51 @@ public class BluetoothMgr extends Activity {
                 break;
             case MESSAGE_READ:
                 byte[] readBuf = (byte[]) msg.obj;
-                // construct a string from the valid bytes in the buffer
-                //String readMessage = new String(readBuf, 0, msg.arg1);
+                byte[] crcbuf = new byte[readBuf.length - 2];
+                byte[] databuf = new byte[readBuf.length - 5];
+                byte crchi = 0, crclo = 0;
+                int crc_count=0, data_count=0;
+                String readMessage;
                 
-                int start=0;
-                for (int j=0; j<readBuf.length; j++)
+                // construct a string from the valid bytes in the buffer
+                for (int r=0; r<readBuf.length; r++)
             	{
-                	if (readBuf[j] == 0x00) continue;
-                   		Log.i(TAG, count_t + "  " + String.format("0x%02X", readBuf[j]));
-               	}
-                count_t++;
-/*                int start=0, bytecount=0;
-                byte crchi = 0;                
-                byte crclo = 0;                
-                byte[] Buf = new byte[readBuf.length];
-                byte[] crcBuf = new byte[readBuf.length-4];
-                for (int j=0; j<readBuf.length; j++)
-            	{
-                	if (readBuf[j] == 0x0A)
-                	{
-                		start = 1;
-                	}
-                	else if (readBuf[j] == 0x0D) 
-                	{
-                		start = 0;
-                		//clone
-                        for (int r=0; j<readBuf.length-2; r++)
-                    	{
-                        	crcBuf[r] = readBuf[r];
-                    		Log.i(TAG, String.format("0x%02X", crcBuf[r]));
-                    	}
-                        
-                        crchi = readBuf[readBuf.length-2];
-                        crclo = readBuf[readBuf.length-1];
-                        
-                		break;
-                	}
-                	else if (start == 1)
-                	{
-                		Log.i(TAG, Integer.toString(bytecount));
-                		Buf[bytecount] = readBuf[j];
-                		bytecount++;
-                	}
+                	Log.i(TAG, count_t + "  " + String.format("0x%02X", readBuf[r]));
             	}
                 
-                //cal crc
+                for (int r=0; r<readBuf.length - 1; r++)
+            	{
+                	if (r==0) 
+                		continue;
+                	else if (r == readBuf.length - 3)
+                		crchi = readBuf[r];
+                	else if (r == readBuf.length - 2)
+                		crclo = readBuf[r];
+                	else
+                	{
+                		if (r == 1 || r == 2 || r == 3)
+                		{
+                		}
+                		else
+                		{
+                			databuf[data_count] = readBuf[r];
+                			data_count++;
+                		}
+                		
+                		crcbuf[crc_count] = readBuf[r];
+                		crc_count++;
+                    	Log.i(TAG, "crc:  " + String.format("0x%02X", readBuf[r]));
+                	}
+                	
+            	}
                 
-                Log.i(TAG, "crc: " + String.format("0x%X", CRC16(crcBuf)));
+                Log.i(TAG, "crc: " + String.format("0x%X", CRC16(crcbuf)));
+                Log.i(TAG, "crc: " + String.format("0x%X", crc_chk(crcbuf)));
                 Log.i(TAG, "crchi: " + String.format("0x%02X", crchi));
                 Log.i(TAG, "crclo: " + String.format("0x%02X", crclo));
-  */              
                 
-                
-                //mConversationArrayAdapter.add(mConnectedDeviceName+":  " + readMessage);
+                readMessage = new String(databuf, 0, databuf.length);
+                mConversationArrayAdapter.add(readMessage);
                 break;
             case MESSAGE_DEVICE_NAME:
                 // save the connected device's name

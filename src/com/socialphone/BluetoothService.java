@@ -117,7 +117,8 @@ public class BluetoothService {
      * @param socket  The BluetoothSocket on which the connection was made
      * @param device  The BluetoothDevice that has been connected
      */
-    public synchronized void connected(BluetoothSocket socket, BluetoothDevice device) {
+    public synchronized void connected(BluetoothSocket socket, BluetoothDevice device) 
+    {
         if (D) Log.d(TAG, "connected");
 
         // Cancel the thread that completed the connection
@@ -347,12 +348,14 @@ public class BluetoothService {
         private final InputStream mmInStream;
         private final OutputStream mmOutStream;
 
+        int count_t;
+        
         public ConnectedThread(BluetoothSocket socket) {
             Log.d(TAG, "create ConnectedThread");
             mmSocket = socket;
             InputStream tmpIn = null;
             OutputStream tmpOut = null;
-
+            count_t = 0;
             // Get the BluetoothSocket input and output streams
             try {
                 tmpIn = socket.getInputStream();
@@ -369,16 +372,61 @@ public class BluetoothService {
             Log.i(TAG, "BEGIN mConnectedThread");
             byte[] buffer = new byte[1024];
             int bytes;
-
+            int start=0, bytecount=0;
+            byte[] buf = null, rbuf = null;
             // Keep listening to the InputStream while connected
             while (true) {
                 try {
                     // Read from the InputStream
                     bytes = mmInStream.read(buffer);
 
+                    for (int j=0; j<buffer.length; j++)
+                	{
+                    	if (buffer[j] == 0x0A)
+                    	{
+                    		start = 1;
+                            buf = new byte[buffer.length];
+                    		buf[bytecount] = buffer[j];
+                    		bytecount++;
+                    	}
+                    	else if (start == 1 && buffer[j] == 0x0D) 
+                    	{
+                    		buf[bytecount] = buffer[j];
+                    		bytecount++;
+                            rbuf = new byte[bytecount];
+                    		
+                    		start = 0;
+                    		bytecount=0;
+                    		
+                    		//clone
+                            for (int r=0; r<rbuf.length; r++)
+                        	{
+                            	rbuf[r] = buf[r];
+                        	}
+
+                            mHandler.obtainMessage(BluetoothMgr.MESSAGE_READ, rbuf.length, -1, rbuf)
+                                   .sendToTarget();
+                            
+                    		break;
+                    	}
+                    	else if (start == 1 && buffer[j] != 0)
+                    	{
+                    		Log.i(TAG, Integer.toString(bytecount));
+                    		buf[bytecount] = buffer[j];
+                    		bytecount++;
+                    	}
+                	}
+                    
+                    /*
+                    for (int j=0; j<buffer.length; j++)
+                	{
+                   		Log.i(TAG, count_t + "  " + String.format("0x%02X", buffer[j]));
+                   	}
+                    count_t++;
+                    */
                     // Send the obtained bytes to the UI Activity
-                    mHandler.obtainMessage(BluetoothMgr.MESSAGE_READ, bytes, -1, buffer)
-                            .sendToTarget();
+                    //mHandler.obtainMessage(BluetoothMgr.MESSAGE_READ, bytes, -1, buffer)
+                     //       .sendToTarget();
                 } catch (IOException e) {
                     Log.e(TAG, "disconnected", e);
                     connectionLost();
