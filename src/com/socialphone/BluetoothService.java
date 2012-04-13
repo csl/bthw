@@ -380,8 +380,16 @@ public class BluetoothService {
                     // Read from the InputStream
                     bytes = mmInStream.read(buffer);
 
+                    try {
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+                    
                     for (int j=0; j<buffer.length; j++)
                 	{
+                    	
                     	if (buffer[j] == 0x0A)
                     	{
                     		start = 1;
@@ -406,24 +414,28 @@ public class BluetoothService {
 
                             mHandler.obtainMessage(BluetoothMgr.MESSAGE_READ, rbuf.length, -1, rbuf)
                                    .sendToTarget();
+
                             
                     		break;
                     	}
                     	else if (start == 1 && buffer[j] != 0)
                     	{
                     		Log.i(TAG, Integer.toString(bytecount));
-                    		buf[bytecount] = buffer[j];
-                    		bytecount++;
+                    		if (bytecount == 2)
+                    		{
+                    			if (buf[bytecount-1] != 0x1)
+                    			{
+                        			buf[bytecount] = buf[bytecount-1];
+                        			bytecount++;
+                        			buf[bytecount-1] = 0x01;
+                    			}
+                    		}
+                   			buf[bytecount] = buffer[j];
+                   			bytecount++;
                     	}
                 	}
                     
-                    /*
-                    for (int j=0; j<buffer.length; j++)
-                	{
-                   		Log.i(TAG, count_t + "  " + String.format("0x%02X", buffer[j]));
-                   	}
-                    count_t++;
-                    */
+                  
                     // Send the obtained bytes to the UI Activity
                     //mHandler.obtainMessage(BluetoothMgr.MESSAGE_READ, bytes, -1, buffer)
                      //       .sendToTarget();
@@ -433,7 +445,9 @@ public class BluetoothService {
                     break;
                 }
             }
+            
         }
+
 
         /**
          * Write to the connected OutStream.

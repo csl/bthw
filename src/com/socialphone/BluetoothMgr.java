@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.StringTokenizer;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -105,8 +107,8 @@ public class BluetoothMgr extends Activity {
     	0xf2,0x32,0x36,0xf6,0xf7,0x37,0xf5,0x35,0x34,0xf4,
     	0x3c,0xfc,0xfd,0x3d,0xff,0x3f,0x3e,0xfe,0xfa,0x3a,
     	0x3b,0xfb,0x39,0xf9,0xf8,0x38,0x28,0xe8,0xe9,0x29,
-    	0xeb,0x2b,0x2a,0xea,0xee,0x2e,0x2f,0xef,0x2d,0xed,0xec,
-    	0x2c,0xe4,0x24,0x25,0xe5,0x27,0xe7,0xe6,0x26,
+    	0xeb,0x2b,0x2a,0xea,0xee,0x2e,0x2f,0xef,0x2d,0xed,
+    	0xec,0x2c,0xe4,0x24,0x25,0xe5,0x27,0xe7,0xe6,0x26,
     	0x22,0xe2,0xe3,0x23,0xe1,0x21,0x20,0xe0,0xa0,0x60,
     	0x61,0xa1,0x63,0xa3,0xa2,0x62,0x66,0xa6,0xa7,0x67,
     	0xa5,0x65,0x64,0xa4,0x6c,0xac,0xad,0x6d,0xaf,0x6f,
@@ -311,7 +313,7 @@ public class BluetoothMgr extends Activity {
 	    	reg_crc ^= data[length];
 	    	for(j=0;j<8;j++)
 	    	{
-	    			if((reg_crc & 0x01) != 0) /* LSB(b0)=1 */
+	    			if((reg_crc & 0x01) == 0x01) /* LSB(b0)=1 */
 	    				reg_crc=(reg_crc >> 1) ^ 0xA001;
 	    			else
 	    				reg_crc=reg_crc >> 1;
@@ -375,14 +377,14 @@ public class BluetoothMgr extends Activity {
                          mp.play_voice("warn.mp3");
 
                          mTitle.setText("disconnect...");
-                        
+/*                        
                         //reconnect
                         reconnect = 1;
                         Intent serverIntent = new Intent(bm, DeviceListActivity.class);
                         startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE);
                         
                         BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
-                        mChatService.connect(device);
+                        mChatService.connect(device);*/
                         
                 	}
                 	else
@@ -401,7 +403,10 @@ public class BluetoothMgr extends Activity {
                 break;
             case MESSAGE_READ:
                 byte[] readBuf = (byte[]) msg.obj;
-                byte[] crcbuf = new byte[readBuf.length - 2];
+                
+                if (readBuf.length <= 5) break;
+                
+                byte[] crcbuf = new byte[readBuf.length - 4];
                 byte[] databuf = new byte[readBuf.length - 5];
                 byte crchi = 0, crclo = 0;
                 int crc_count=0, data_count=0;
@@ -423,6 +428,7 @@ public class BluetoothMgr extends Activity {
                 		crclo = readBuf[r];
                 	else
                 	{
+                		
                 		if (r == 1 || r == 2 || r == 3)
                 		{
                 		}
@@ -438,13 +444,23 @@ public class BluetoothMgr extends Activity {
                 	}
                 	
             	}
+                for (int r=0; r<crcbuf.length; r++)
+            	{
+                	Log.i(TAG, "this crc:  " + String.format("0x%02X", crcbuf[r]));                
+            	}
                 
                 Log.i(TAG, "crc: " + String.format("0x%X", CRC16(crcbuf)));
-                Log.i(TAG, "crc: " + String.format("0x%X", crc_chk(crcbuf)));
-                Log.i(TAG, "crchi: " + String.format("0x%02X", crchi));
-                Log.i(TAG, "crclo: " + String.format("0x%02X", crclo));
+                Log.i(TAG, "crchi: " + String.format("0x%02X%02X", crchi, crclo));
+                
+                String crc = String.format("0x%X", CRC16(crcbuf));
+                String rcrc = String.format("0x%02X%02X", crchi, crclo);
                 
                 readMessage = new String(databuf, 0, databuf.length);
+                if (!crc.equals(rcrc))
+                {
+                    readMessage = readMessage + " (crc error)"; 
+                }
+                
                 mConversationArrayAdapter.add(readMessage);
                 break;
             case MESSAGE_DEVICE_NAME:
@@ -483,13 +499,55 @@ public class BluetoothMgr extends Activity {
             }
         }
     }
-
+    
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.option_menu, menu);
         return true;
     }
+    
+    public boolean onKeyDown(int keyCode, KeyEvent event) 
+    {
+    	if(keyCode==KeyEvent.KEYCODE_BACK)
+    	{  
+    		openOptionsDialog();
+    		return true;
+    	}
+		
+		return super.onKeyDown(keyCode, event);  
+    }
+    
+    //show message, ask exit yes or no
+    private void openOptionsDialog() {
+      
+      new AlertDialog.Builder(this)
+        .setTitle("Exit?")
+        .setMessage("Exit?")
+        .setNegativeButton("No",
+            new DialogInterface.OnClickListener() {
+            
+              public void onClick(DialogInterface dialoginterface, int i) 
+              {
+              }
+        }
+        )
+     
+        .setPositiveButton("Yes",
+            new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialoginterface, int i) 
+            {
+              mBluetoothAdapter.disable();
+              android.os.Process.killProcess(android.os.Process.myPid());           
+              finish();
+            }
+            
+        }
+        )
+        
+        .show();
+    }
+        
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
